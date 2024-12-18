@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="../static/css/style.css">
+    <style>
+        .new-transaction-form input,
+        .new-transaction-form select,
+        .new-transaction-form button {
+            display: block;
+            width: 100%;
+            margin: 10px 0;
+            padding: 10px;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+
+        .new-transaction-form button {
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        .new-transaction-form button:hover {
+            background-color: #0056b3;
+        }
+
+        .login-container {
+            text-align: center;
+            max-width: 400px;
+            margin: auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        h3 {
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+        }
+    </style>
+    <title>New Transaction - BankAG</title>
+</head>
+
+<body class="gradient-background">
+    <section class="login-outer-container">
+        <div class="login-container">
+            <h3>New Transaction Page</h3>
+            <form class="new-transaction-form" method="POST" action="/submit-transaction">
+                <input type="text" name="acc_no" placeholder="Account Number" required>
+                <select name="type" required>
+                    <option value="" disabled selected>Select Transaction Type</option>
+                    <option value="credit">Credit</option>
+                    <option value="debit">Debit</option>
+                </select>
+                <input type="number" name="amount" placeholder="Transaction Amount" required>
+                <input type="text" name="old_bal" placeholder="Old Balance (readonly)" readonly>
+                <input type="text" name="to_acc" placeholder="Recipient Account (if applicable)">
+                <button type="submit">Submit</button>
+            </form>
+        </div>
+    </section>
+    <footer>&copy; 2024 BankAG. All rights reserved.</footer>
+</body>
+
+</html>
