@@ -51,26 +51,6 @@ class Account(db.Model):
     acc_no = db.Column(db.String(20), primary_key=True)
     balance = db.Column(db.Float, nullable=False)
 
-class TransactionForm(FlaskForm):
-    acc_no = StringField(
-        validators=[InputRequired()],
-        render_kw={"placeholder": "Enter Your Account Number"})
-    type = StringField(validators=[InputRequired()],
-                       render_kw={"placeholder": "Enter type of transfer"})
-    amount = IntegerField(
-        validators=[InputRequired()],
-        render_kw={"placeholder": "Enter Amount to be transferred"})
-    old_bal = IntegerField(validators=[InputRequired()],
-                           render_kw={"placeholder": "Enter your balance"})
-    to_acc = StringField(validators=[InputRequired()],
-                         render_kw={
-                             "placeholder":
-                             "Enter Account number you'd like to transfer to"
-                         })
-    # new_bal = (old_bal - amount)
-
-    submit = SubmitField('Submit')
-
 
 class ClientForm(FlaskForm):
     ssn = StringField(validators=[InputRequired(),
