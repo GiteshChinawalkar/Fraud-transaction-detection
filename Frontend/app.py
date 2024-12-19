@@ -9,6 +9,10 @@ from sqlalchemy.ext.automap import automap_base
 import pickle
 import numpy as np
 import mysql.connector
+import joblib
+from datetime import datetime, timedelta
+
+model = joblib.load('../ML/model_cycle1.joblib')
 
 app = Flask(__name__)
 app.config[
@@ -40,6 +44,12 @@ class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(20), nullable=False, unique=True)
     password = db.Column(db.String(80), nullable=False)
+
+class Account(db.Model):
+    __tablename__ = 'accounts'
+    #gives the account number and get the balance from db
+    acc_no = db.Column(db.String(20), primary_key=True)
+    balance = db.Column(db.Float, nullable=False)
 
 class TransactionForm(FlaskForm):
     acc_no = StringField(
@@ -175,15 +185,6 @@ def new_client():
     return render_template('new_client.html', form=form)
 
 
-@app.route('/transaction', methods=['GET', 'POST'])
-def new_transaction():
-    form = TransactionForm()
-
-    if form.validate_on_submit():
-        return redirect(url_for('success'))
-    return render_template('transaction.html', form=form)
-
-
 @app.route('/trans_success', methods=['GET', 'POST'])
 def success():
     return render_template('trans_success.html')
@@ -195,13 +196,70 @@ def register():
 
     if form.validate_on_submit():
         hashed_password = bcrypt.generate_password_hash(form.password.data)
-        new_user = User(username=form.username.data, password=hashed_password)
+        new_user = User(username=form.username.data, email=request.form['email'],password=hashed_password)
         db.session.add(new_user)
         db.session.commit()
         return redirect(url_for('login'))
 
     return render_template('register.html', form=form)
 
+@app.route('/fraud', methods=['GET'])
+def fraud():
+    return render_template('transaction_fail.html') 
 
+
+@app.route('/transaction', methods=['GET', 'POST'])
+def transaction():
+    if request.method == 'POST':
+        # Get form data
+        acc_no = request.form['acc_no']
+        to_acc = request.form['to_acc']
+        amount = float(request.form['amount'])
+        transaction_type = request.form['type']
+        
+        # Fetch balances from the database
+        sender_account = Account.query.filter_by(acc_no=acc_no).first()
+        recipient_account = Account.query.filter_by(acc_no=to_acc).first()
+
+        if not sender_account or not recipient_account:
+            return "Error: Invalid account numbers", 400
+        
+        transaction_time = datetime.now()
+        simulation_start = datetime.now() - timedelta(days=30)
+        step = (transaction_time - simulation_start).total_seconds() // 3600 
+        step = int(step) % 744 
+        # Calculate old and new balances
+        oldbalance_org = sender_account.balance
+        newbalance_org = oldbalance_org - amount
+        oldbalance_dest = recipient_account.balance
+        newbalance_dest = oldbalance_dest + amount
+        diff_new_old_balance = newbalance_org - oldbalance_org
+        diff_new_old_destiny = newbalance_dest - oldbalance_dest
+        type_transfer = 1 if transaction_type.upper() == "TRANSFER" else 0
+        input_data = np.array([[
+            step,
+            oldbalance_org,
+            newbalance_org,
+            newbalance_dest,
+            diff_new_old_balance,
+            diff_new_old_destiny,
+            type_transfer
+        ]])
+
+        # Make prediction
+        is_fraud = model.predict(input_data)[0]
+
+        # Redirect based on prediction
+        if is_fraud == 1:
+            return redirect(url_for('fraud'))
+        else:
+            # Update balances in the database
+            sender_account.balance = newbalance_org
+            recipient_account.balance = newbalance_dest
+            db.session.commit()
+            return redirect(url_for('success'))
+
+    return render_template('transaction.html')
+        
 if __name__ == '__main__':
     app.run(debug=True)
