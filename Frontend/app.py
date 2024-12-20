@@ -21,6 +21,7 @@ app.config['SECRET_KEY'] = 'thisisasecretkey'
 
 # DATABASEURI = 'postgresql://postgres:admin123@localhost:5432/bank_data?options=-csearch_path=bank_v3'
 DATABASEURI = 'postgresql://postgres:admin123@localhost:5432/bank_data'
+# DATABASEURI = 'postgresql://aryagoyal@localhost:5432/bank_data'
 
 engine = create_engine(DATABASEURI)
 conn = engine.connect()
