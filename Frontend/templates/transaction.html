@@ -53,6 +53,9 @@
     <section class="login-outer-container">
       <div class="login-container">
         <h3>New Transaction Page</h3>
+        {% if error %}
+            <p class="error-message" style="color: red;">{{ error }}</p>
+        {% endif %}
         <form class="new-transaction-form" method="POST" action="/transaction">
           <input
           type="text"

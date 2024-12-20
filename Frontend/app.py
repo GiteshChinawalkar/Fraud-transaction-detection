@@ -178,50 +178,72 @@ def logout():
 @login_required
 def transaction():
     if request.method == 'POST':
-        from_acc = str(request.form['from_acc'])
-        to_acc = str(request.form['to_acc'])
-        amount = float(request.form['amount'])
-        transaction_type = request.form['type']
-        print(from_acc)
+        try:
+            from_acc = str(request.form['from_acc'])
+            to_acc = str(request.form['to_acc'])
+            amount = float(request.form['amount'])
+            transaction_type = request.form['type']
 
-        # Fetch accounts
-        sender_query = text("SELECT * FROM bank_v3.bank_account WHERE acc_no = :from_acc")
-        sender_account = conn.execute(sender_query, {"from_acc": from_acc}).fetchone()
-        recipient_account = None
-        if to_acc:
-            recipient_query = text("SELECT * FROM bank_v3.bank_account WHERE acc_no = :to_acc")
-            recipient_account = conn.execute(recipient_query, {"to_acc": to_acc}).fetchone()
+            # Validate transaction type
+            valid_types = {'CASH-IN', 'CASH-OUT', 'DEBIT', 'PAYMENT', 'TRANSFER'}
+            if transaction_type not in valid_types:
+                raise ValueError("Invalid transaction type selected.")
 
-        if not sender_account or (to_acc and not recipient_account):
-            return "Error: Invalid account numbers", 400
+            # Fetch accounts
+            sender_query = text("SELECT * FROM bank_v3.bank_account WHERE acc_no = :from_acc")
+            sender_account = conn.execute(sender_query, {"from_acc": from_acc}).fetchone()
 
-        # Perform transaction logic
-        old_balance_org = sender_account[3] # taking balance from fetched row tuple
-        new_balance_org = old_balance_org - amount if transaction_type == 'debit' else old_balance_org + amount
-        old_balance_dest = recipient_account[3] if recipient_account else 0
-        new_balance_dest = old_balance_dest + amount if recipient_account else 0
+            recipient_account = None
+            if to_acc:
+                recipient_query = text("SELECT * FROM bank_v3.bank_account WHERE acc_no = :to_acc")
+                recipient_account = conn.execute(recipient_query, {"to_acc": to_acc}).fetchone()
 
-        # ML Prediction
-        # ML Prediction Step Calculation
-        step = (timedelta(days=30).total_seconds() // 3600) % 744
-        input_data = np.array([[step, old_balance_org, new_balance_org, new_balance_dest,
-                                new_balance_org - old_balance_org, new_balance_dest - old_balance_dest,
-                                1 if transaction_type == 'CASH-IN' else 0]])
-        is_fraud = model.predict(input_data)[0]
+            # Check if sender or recipient accounts are missing
+            if not sender_account:
+                return render_template('transaction.html', error="Sender's account number is invalid.")
+            if to_acc and not recipient_account:
+                return render_template('transaction.html', error="Recipient's account number is invalid.")
 
-        if is_fraud == 1:
-            return redirect(url_for('transaction_fail'))
+            # Perform transaction logic
+            old_balance_org = sender_account[3]
+            new_balance_org = old_balance_org - amount if transaction_type == 'CASH-OUT' else old_balance_org + amount
 
-        # Update balances
-        update_sender = text("UPDATE bank_v3.bank_account SET balance = :new_balance WHERE acc_no = :from_acc")
-        conn.execute(update_sender, {"new_balance": new_balance_org, "from_acc": from_acc})
+            if new_balance_org < 0:
+                return render_template('transaction.html', error="Insufficient funds in sender's account.")
 
-        if recipient_account:
-            update_recipient = text("UPDATE  bank_v3.bank_account SET balance = :new_balance WHERE acc_no = :to_acc")
-            conn.execute(update_recipient, {"new_balance": new_balance_dest, "to_acc": to_acc})
+            old_balance_dest = recipient_account[3] if recipient_account else 0
+            new_balance_dest = old_balance_dest + amount if recipient_account else 0
 
-        return redirect(url_for('transaction_success'))
+            # ML Prediction for fraud detection
+            step = (timedelta(days=30).total_seconds() // 3600) % 744
+            input_data = np.array([[step, old_balance_org, new_balance_org, new_balance_dest,
+                                    new_balance_org - old_balance_org, new_balance_dest - old_balance_dest,
+                                    1 if transaction_type == 'CASH-IN' else 0]])
+            is_fraud = model.predict(input_data)[0]
+
+            if is_fraud == 1:
+                return render_template('transaction_fail.html', error="Transaction flagged as fraudulent.")
+
+            # Update balances
+            update_sender = text("UPDATE bank_v3.bank_account SET balance = :new_balance WHERE acc_no = :from_acc")
+            conn.execute(update_sender, {"new_balance": new_balance_org, "from_acc": from_acc})
+
+            if recipient_account:
+                update_recipient = text("UPDATE bank_v3.bank_account SET balance = :new_balance WHERE acc_no = :to_acc")
+                conn.execute(update_recipient, {"new_balance": new_balance_dest, "to_acc": to_acc})
+
+            conn.commit()
+            return render_template('transaction_success.html')
+
+        except ValueError as ve:
+            conn.rollback()
+            return render_template('transaction.html', error=str(ve))
+        except Exception as e:
+            conn.rollback()
+            print(f"Transaction Error: {e}")
+            return render_template('transaction.html', error="An unexpected error occurred. Please try again.")
     return render_template('transaction.html')
+
 
 @app.route('/transaction_success')
 def transaction_success():
