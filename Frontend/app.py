@@ -1,245 +1,191 @@
-from flask import Flask, render_template, url_for, redirect, request
-from flask_sqlalchemy import SQLAlchemy
-from flask_login import UserMixin, login_user, LoginManager, login_required, logout_user, current_user
+from flask import Flask, render_template, redirect, url_for, request, session, g
+from flask_login import UserMixin, LoginManager, login_user, login_required, logout_user
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField, IntegerField
+from wtforms import StringField, PasswordField, SubmitField, IntegerField, SelectField
 from wtforms.validators import InputRequired, Length, ValidationError
 from flask_bcrypt import Bcrypt
-from sqlalchemy.ext.automap import automap_base
-import pickle
-import numpy as np
-import mysql.connector
+from sqlalchemy import create_engine, text
 import joblib
+import numpy as np
 from datetime import datetime, timedelta
 
+# Load Machine Learning Model
 model = joblib.load('../ML/model_cycle1.joblib')
 
 app = Flask(__name__)
-app.config[
-    'SQLALCHEMY_DATABASE_URI'] = 'mysql://root:password123@localhost/BANK2'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Configuration
 app.config['SECRET_KEY'] = 'thisisasecretkey'
-db = SQLAlchemy(app)
-bcrypt = Bcrypt(app)
 
-app.app_context().push()
-Base = automap_base()
-Base.prepare(db.engine, reflect=True)
-client = Base.classes.client
+# DATABASEURI = 'postgresql://postgres:admin123@localhost:5432/bank_data?options=-csearch_path=bank_v3'
+DATABASEURI = 'postgresql://postgres:admin123@localhost:5432/bank_data'
 
+engine = create_engine(DATABASEURI)
+conn = engine.connect()
+# bcrypt = Bcrypt(app)
 
-app.app_context().push()
-
+# Login Manager
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-
+# Models replaced with raw SQL
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    query = text("SELECT * FROM bank_v3.userdata WHERE id = :id")
+    user = conn.execute(query, {"id": user_id}).fetchone()
+    if user:
+        return  Userdata(user[0], user[1], user[2], user[3])
+    return None
 
+class Userdata(UserMixin):
+    def __init__(self, id, username, password, email):
+        self.id = id
+        self.username = username
+        self.password = password
+        self.email = email
 
-class User(db.Model, UserMixin):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(20), nullable=False, unique=True)
-    password = db.Column(db.String(80), nullable=False)
-
-class Account(db.Model):
-    __tablename__ = 'accounts'
-    #gives the account number and get the balance from db
-    acc_no = db.Column(db.String(20), primary_key=True)
-    balance = db.Column(db.Float, nullable=False)
-
-
-class ClientForm(FlaskForm):
-    ssn = StringField(validators=[InputRequired(),
-                                  Length(min=11, max=11)],
-                      render_kw={"placeholder": "ssn"})
-
-    fname = StringField(validators=[InputRequired(),
-                                    Length(min=3, max=50)],
-                        render_kw={"placeholder": "First Name"})
-    lname = StringField(validators=[InputRequired(),
-                                    Length(min=3, max=50)],
-                        render_kw={"placeholder": "Last Name"})
-    dob = StringField(validators=[InputRequired(),
-                                  Length(min=3, max=50)],
-                      render_kw={"placeholder": "Date of birth"})
-    email = StringField(validators=[InputRequired(),
-                                    Length(min=3, max=50)],
-                        render_kw={"placeholder": "email"})
-    phone = StringField(validators=[InputRequired(),
-                                    Length(min=3, max=50)],
-                        render_kw={"placeholder": "phone"})
-    street = StringField(validators=[InputRequired(),
-                                     Length(min=3, max=50)],
-                         render_kw={"placeholder": "street address"})
-    city = StringField(validators=[InputRequired(),
-                                   Length(min=3, max=50)],
-                       render_kw={"placeholder": "city"})
-    state = StringField(validators=[InputRequired(),
-                                    Length(min=3, max=50)],
-                        render_kw={"placeholder": "state"})
-
-    submit = SubmitField('Submit')
-
+# Forms
 class RegisterForm(FlaskForm):
-    username = StringField(validators=[InputRequired(),
-                                       Length(min=4, max=20)],
-                           render_kw={"placeholder": "Username"})
-
-    password = PasswordField(
-        validators=[InputRequired(), Length(min=8, max=20)],
-        render_kw={"placeholder": "Password"})
-
+    username = StringField('username', validators=[InputRequired(), Length(min=4, max=20)])
+    password = PasswordField('Password', validators=[InputRequired(), Length(min=8, max=20)])
+    email = StringField('email', validators=[InputRequired(), Length(min=4, max=100)])
     submit = SubmitField('Register')
 
     def validate_username(self, username):
-        existing_user_username = User.query.filter_by(
-            username=username.data).first()
-        if existing_user_username:
-            raise ValidationError(
-                'That username already exists. Please choose a different one.')
-
+        query = text("SELECT * FROM bank_v3.userdata WHERE username = :username")
+        user = conn.execute(query, {"username": username.data}).fetchone()
+        if user:
+            raise ValidationError('Username already exists.')
 
 class LoginForm(FlaskForm):
-    username = StringField(validators=[InputRequired(),
-                                       Length(min=4, max=20)],
-                           render_kw={"placeholder": "Username"})
-
-    password = PasswordField(
-        validators=[InputRequired(), Length(min=8, max=20)],
-        render_kw={"placeholder": "Password"})
-
+    email = StringField('email', validators=[InputRequired(), Length(min=4, max=100)])
+    password = PasswordField('Password', validators=[InputRequired(), Length(min=8, max=20)])
     submit = SubmitField('Login')
 
-
+# Routes
 @app.route('/')
 def home():
-    return render_template('home.html')
+    return render_template('index.html')
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    form = RegisterForm()
+    if request.method == 'POST':
+        # Check if the user already exists
+        query_check = text("""
+            SELECT COUNT(*) FROM bank_v3.Userdata
+            WHERE username = :username OR email = :email
+        """)
+        result = conn.execute(query_check, {"username": form.username.data, "email": form.email.data}).scalar()
+        
+        if result > 0:
+            # User already exists
+            return render_template('register.html', form=form, error="Username or email already exists.")
+
+        # Hash the password
+        # hashed_password = bcrypt.generate_password_hash(form.password.data).decode('utf-8')
+        
+        # Insert the new user
+        query_insert = text("""
+            INSERT INTO bank_v3.Userdata (username, password, email) 
+            VALUES (:username, :password, :email)
+        """)
+        try:
+            conn.execute(query_insert, {
+                "username": form.username.data,
+                "password": form.password.data,
+                "email": form.email.data
+            })
+        except IntegrityError:
+            print("fail")
+            return render_template('register.html', form=form, error="Error inserting the user. Try again.")
+
+        return redirect(url_for('login'))
+    
+    return render_template('register.html', form=form)
 
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     form = LoginForm()
-    if form.validate_on_submit():
-        user = User.query.filter_by(username=form.username.data).first()
-        if user:
-            if bcrypt.check_password_hash(user.password, form.password.data):
-                login_user(user)
-                return redirect(url_for('dashboard'))
-    return render_template('login.html', form=form)
+    if request.method == 'POST':
+        query = text("SELECT * FROM bank_v3.Userdata WHERE email = :email")
+        user = conn.execute(query, {"email": form.email.data}).fetchone()
+        print("USER", user)
+        print(user[2])
+        if user and (user[2] == form.password.data):
+            user_obj = Userdata(user[0], user[1], user[2], user[3])
+            login_user(user_obj)
+            return redirect(url_for('dashboard'))
+    return render_template('index.html', form=form)
 
-
-@app.route('/dashboard', methods=['GET', 'POST'])
+@app.route('/dashboard')
 @login_required
 def dashboard():
-    return render_template('dashboard.html')
+    return render_template('home_page.html')
 
-
-@app.route('/logout', methods=['GET', 'POST'])
+@app.route('/logout')
 @login_required
 def logout():
     logout_user()
-    return redirect(url_for('login'))
+    return redirect(url_for('home'))
 
-
-@app.route('/new_client', methods=['GET', 'POST'])
-def new_client():
-    form = ClientForm()
-
-    if form.validate_on_submit():
-        new_client = client(ssn=form.ssn.data,
-                            Fname=form.fname.data,
-                            Lname=form.lname.data,
-                            DOB=form.dob.data,
-                            email=form.email.data,
-                            phone=form.phone.data,
-                            street=form.street.data,
-                            city=form.city.data,
-                            state=form.state.data)
-        db.session.add(new_client)
-        db.session.commit()
-        return redirect(url_for('dashboard'))
-    return render_template('new_client.html', form=form)
-
-
-@app.route('/trans_success', methods=['GET', 'POST'])
-def success():
-    return render_template('trans_success.html')
-
-
-@app.route('/register', methods=['GET', 'POST'])
-def register():
-    form = RegisterForm()
-
-    if form.validate_on_submit():
-        hashed_password = bcrypt.generate_password_hash(form.password.data)
-        new_user = User(username=form.username.data, email=request.form['email'],password=hashed_password)
-        db.session.add(new_user)
-        db.session.commit()
-        return redirect(url_for('login'))
-
-    return render_template('register.html', form=form)
-
-@app.route('/fraud', methods=['GET'])
-def fraud():
-    return render_template('transaction_fail.html') 
-
-
+# Transaction Route Example
 @app.route('/transaction', methods=['GET', 'POST'])
+@login_required
 def transaction():
     if request.method == 'POST':
-        # Get form data
         acc_no = request.form['acc_no']
         to_acc = request.form['to_acc']
         amount = float(request.form['amount'])
         transaction_type = request.form['type']
-        
-        # Fetch balances from the database
-        sender_account = Account.query.filter_by(acc_no=acc_no).first()
-        recipient_account = Account.query.filter_by(acc_no=to_acc).first()
 
-        if not sender_account or not recipient_account:
+        # Fetch accounts
+        sender_query = text("SELECT * FROM Account WHERE acc_no = :acc_no")
+        sender_account = conn.execute(sender_query, {"acc_no": acc_no}).fetchone()
+        recipient_account = None
+        if to_acc:
+            recipient_query = text("SELECT * FROM Account WHERE acc_no = :to_acc")
+            recipient_account = conn.execute(recipient_query, {"to_acc": to_acc}).fetchone()
+
+        if not sender_account or (to_acc and not recipient_account):
             return "Error: Invalid account numbers", 400
-        
-        transaction_time = datetime.now()
-        simulation_start = datetime.now() - timedelta(days=30)
-        step = (transaction_time - simulation_start).total_seconds() // 3600 
-        step = int(step) % 744 
-        # Calculate old and new balances
-        oldbalance_org = sender_account.balance
-        newbalance_org = oldbalance_org - amount
-        oldbalance_dest = recipient_account.balance
-        newbalance_dest = oldbalance_dest + amount
-        diff_new_old_balance = newbalance_org - oldbalance_org
-        diff_new_old_destiny = newbalance_dest - oldbalance_dest
-        type_transfer = 1 if transaction_type.upper() == "TRANSFER" else 0
-        input_data = np.array([[
-            step,
-            oldbalance_org,
-            newbalance_org,
-            newbalance_dest,
-            diff_new_old_balance,
-            diff_new_old_destiny,
-            type_transfer
-        ]])
 
-        # Make prediction
+        # Perform transaction logic
+        old_balance_org = sender_account['balance']
+        new_balance_org = old_balance_org - amount if transaction_type == 'debit' else old_balance_org + amount
+        old_balance_dest = recipient_account['balance'] if recipient_account else 0
+        new_balance_dest = old_balance_dest + amount if recipient_account else 0
+
+        # ML Prediction
+        step = (datetime.now() - timedelta(days=30)).total_seconds() // 3600 % 744
+        input_data = np.array([[step, old_balance_org, new_balance_org, new_balance_dest,
+                                new_balance_org - old_balance_org, new_balance_dest - old_balance_dest,
+                                1 if transaction_type == 'credit' else 0]])
         is_fraud = model.predict(input_data)[0]
 
-        # Redirect based on prediction
         if is_fraud == 1:
-            return redirect(url_for('fraud'))
-        else:
-            # Update balances in the database
-            sender_account.balance = newbalance_org
-            recipient_account.balance = newbalance_dest
-            db.session.commit()
-            return redirect(url_for('success'))
+            return redirect(url_for('transaction_fail'))
 
+        # Update balances
+        update_sender = text("UPDATE Account SET balance = :new_balance WHERE acc_no = :acc_no")
+        conn.execute(update_sender, {"new_balance": new_balance_org, "acc_no": acc_no})
+
+        if recipient_account:
+            update_recipient = text("UPDATE Account SET balance = :new_balance WHERE acc_no = :acc_no")
+            conn.execute(update_recipient, {"new_balance": new_balance_dest, "acc_no": to_acc})
+
+        return redirect(url_for('transaction_success'))
     return render_template('transaction.html')
-        
+
+@app.route('/transaction_success')
+def transaction_success():
+    return render_template('transaction_success.html')
+
+@app.route('/transaction_fail')
+def transaction_fail():
+    return render_template('transaction_fail.html')
+
 if __name__ == '__main__':
     app.run(debug=True)
