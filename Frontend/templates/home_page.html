@@ -14,6 +14,13 @@
             margin-top: 50px;
         }
 
+        .note {
+            text-align: center;
+            color: red;
+            font-size: 1rem;
+            margin-top: 20px;
+        }
+
         .action-button {
             display: block;
             padding: 10px 20px;
@@ -46,8 +53,13 @@
 <body class="gradient-background">
     <section class="login-outer-container">
         <div class="login-container center-container">
-            <a href="transaction.html" class="action-button">Make New Transaction</a>
-            <a href="index.html" class="action-button logout">Logout</a>
+		    <p class="note">Client details should be added before making any transaction.</p>
+            <a href="new_client" class="action-button">Add Client Details</a>
+            <a href="transaction" class="action-button">Make New Transaction</a>
+            <a href="login" class="action-button logout">Logout</a>
+            <a href="/manage_users" class="action-button" style="{% if not session.get('is_admin') %}display:none;{% endif %}">
+                Manage Users
+            </a>
         </div>
     </section>
     <footer>&copy; 2024 BankAG. All rights reserved.</footer>

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Users</title>
+    <link rel="stylesheet" href="../static/css/style.css">
+</head>
+<body class="manage-users-body">
+    <h1 class="manage-users-title">Manage Users</h1>
+    {% if error %}
+        <p class="error-message">{{ error }}</p>
+    {% endif %}
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Username</th>
+                    <th>Email</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td>{{ user.id }}</td>
+                    <td>{{ user.username }}</td>
+                    <td>{{ user.email }}</td>
+                    <td>
+                        <form method="POST" action="/manage_users" style="display: inline;">
+                            <input type="hidden" name="user_id" value="{{ user.id }}">
+                            <button type="submit" class="delete-button">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <a href="/dashboard" class="back-button">Back to Dashboard</a>
+    </div>
+    
+</body>
+</html>
