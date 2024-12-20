@@ -14,6 +14,10 @@
     <section class="login-outer-container">
         <div class="login-container">
             <h3>Welcome Back to <span class="brand-highlight">BankAG</span></h3>
+                <!-- Error message block -->
+                {% if error %}
+                    <p class="error-message" style="color: red;">{{ error }}</p>
+                {% endif %}
             <form class="login-items" method="POST" action="/login">
                 <label for="email">Email</label>
                 <input type="email" name="email" placeholder="your-email@gmail.com" required>

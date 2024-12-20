@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
+    
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -47,17 +48,18 @@
     <title>New Transaction - BankAG</title>
   </head>
 
+
   <body class="gradient-background">
     <section class="login-outer-container">
       <div class="login-container">
         <h3>New Transaction Page</h3>
         <form class="new-transaction-form" method="POST" action="/transaction">
           <input
-            type="text"
-            name="acc_no"
-            placeholder="Your Account Number"
-            required
-          />
+          type="text"
+          name="from_acc"
+          placeholder="Senders Account Number"
+          required
+        />
           <input
             type="text"
             name="to_acc"
