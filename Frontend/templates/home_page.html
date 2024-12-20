@@ -57,6 +57,9 @@
             <a href="new_client" class="action-button">Add Client Details</a>
             <a href="transaction" class="action-button">Make New Transaction</a>
             <a href="login" class="action-button logout">Logout</a>
+            <a href="/manage_users" class="action-button" style="{% if not session.get('is_admin') %}display:none;{% endif %}">
+                Manage Users
+            </a>
         </div>
     </section>
     <footer>&copy; 2024 BankAG. All rights reserved.</footer>

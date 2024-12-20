@@ -216,3 +216,93 @@ button:hover {
   background: linear-gradient(135deg, #ff4500, #ff7f50);
   transform: translateY(-3px);
 }
+
+/* Manage Users Page */
+.manage-users-body {
+  font-family: "Roboto", sans-serif;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: url('../images/background.jpg') no-repeat center center fixed;
+  background-size: cover;
+}
+
+.manage-users-title {
+  text-align: center;
+  margin: 20px 0;
+  color: #fff;
+  text-shadow: 0px 1px 5px rgba(0, 0, 0, 0.7);
+}
+
+.table-container {
+  max-width: 80%;
+  margin: auto;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 20px 0;
+}
+
+th, td {
+  border: 1px solid #ddd;
+  padding: 10px;
+  text-align: center;
+}
+
+th {
+  background-color: #007BFF;
+  color: white;
+}
+
+tr:nth-child(even) {
+  background-color: #f2f2f2;
+}
+
+tr:hover {
+  background-color: #ddd;
+}
+
+.error-message {
+  color: red;
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+.back-button {
+  display: block;
+  width: 150px;
+  margin: 20px auto;
+  padding: 10px;
+  text-align: center;
+  background-color: #007BFF;
+  color: white;
+  text-decoration: none;
+  border-radius: 5px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.back-button:hover {
+  background-color: #b30000;
+}
+
+.delete-button {
+  padding: 5px 10px;
+  background-color: #dc3545; /* Red color for delete */
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.delete-button:hover {
+  background-color: #c82333; /* Darker red on hover */
+  transform: translateY(-2px); /* Slight hover effect */
+}

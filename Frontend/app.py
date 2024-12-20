@@ -20,8 +20,8 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'thisisasecretkey'
 
 # DATABASEURI = 'postgresql://postgres:admin123@localhost:5432/bank_data?options=-csearch_path=bank_v3'
-DATABASEURI = 'postgresql://postgres:admin123@localhost:5432/bank_data'
-# DATABASEURI = 'postgresql://aryagoyal@localhost:5432/bank_data'
+#DATABASEURI = 'postgresql://postgres:admin123@localhost:5432/bank_data'
+DATABASEURI = 'postgresql://aryagoyal@localhost:5432/bank_data'
 
 engine = create_engine(DATABASEURI)
 conn = engine.connect()
@@ -147,20 +147,20 @@ def register():
 def login():
     form = LoginForm()
     if request.method == 'POST':
-        query = text("SELECT * FROM bank_v3.Userdata WHERE email = :email")
-        user = conn.execute(query, {"email": form.email.data}).fetchone()
-        if not user:
-            # User already exists
-            return render_template('index.html', form=form, error="User does not exists.")
-
-        print("USER", user)
-        print(user[2])
-
-        if user and (user[2] == form.password.data):
-            user_obj = Userdata(user[0], user[1], user[2], user[3])
-            login_user(user_obj)
-            session['email'] =user[3]
+        if form.email.data == 'admin' and form.password.data == 'admin':
+            session['is_admin'] = True
             return redirect(url_for('dashboard'))
+        else:
+            query = text("SELECT * FROM bank_v3.userdata WHERE email = :email")
+            user = conn.execute(query, {"email": form.email.data}).fetchone()
+            if not user:
+                return render_template('index.html', form=form, error="User does not exist.")
+            if user[2] == form.password.data:
+                session['is_admin'] = False
+                user_obj = Userdata(user[0], user[1], user[2], user[3])
+                login_user(user_obj)
+                session['email'] = user[3]
+                return redirect(url_for('dashboard'))
     return render_template('index.html', form=form)
 
 @app.route('/dashboard')
@@ -171,8 +171,10 @@ def dashboard():
 @app.route('/logout')
 @login_required
 def logout():
+    session.pop('is_admin', None)
     logout_user()
     return redirect(url_for('home'))
+
 
 # Transaction Route Example
 @app.route('/transaction', methods=['GET', 'POST'])
@@ -313,6 +315,28 @@ def new_client():
             return render_template('new_client.html', form=form, error="Error adding client. Please try again.")
     return render_template('new_client.html', form=form)
 
+
+@app.route('/manage_users', methods=['GET', 'POST'])
+@login_required
+def manage_users():
+    if not session.get('is_admin'):
+        return redirect(url_for('dashboard'))
+    
+    if request.method == 'POST':
+        user_id = request.form.get('user_id')
+        try:
+            delete_query = text("DELETE FROM bank_v3.userdata WHERE id = :id")
+            conn.execute(delete_query, {"id": user_id})
+            conn.commit()
+            return redirect(url_for('manage_users'))
+        except Exception as e:
+            print(f"Error deleting user: {e}")
+            conn.rollback()
+            return render_template('manage_users.html', error="Failed to delete user.")
+    
+    query = text("SELECT id, username, email FROM bank_v3.userdata")
+    users = conn.execute(query).fetchall()
+    return render_template('manage_users.html', users=users)
 
 
 if __name__ == '__main__':
